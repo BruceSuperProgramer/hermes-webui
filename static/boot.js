@@ -1182,18 +1182,18 @@ function _micToastKeyForRecognitionError(error){
     }
   }
 
-  // Gate continuous dictation to MOBILE so desktop stays one-shot (single
-  // utterance). An explicit hermes-mic-continuous flag wins in both directions,
-  // mirroring the hermes-voice-continuous pattern: 'true' opts a desktop in,
-  // 'false' opts a mobile out. Absent a flag, coarse-pointer (touch) devices get
-  // continuity and everything else stays single-utterance.
+  // Gate continuous dictation: default is CONTINUOUS on every device (desktop
+  // previously fell back to a single utterance, which cut users off after one
+  // sentence — reported as "dictation stops after one line"). An explicit
+  // hermes-mic-continuous flag still wins in both directions: 'true' forces it,
+  // 'false' restores the old one-shot behaviour.
   function _micDictationContinuous(){
     try{
       const flag=localStorage.getItem('hermes-mic-continuous');
       if(flag==='true') return true;
       if(flag==='false') return false;
     }catch(_){}
-    try{ return window.matchMedia('(pointer:coarse)').matches; }catch(_){ return false; }
+    return true; // Continuous by default on every device; set 'false' to opt out.
   }
 
   // Only auto-restart the composer-mic session on a natural pause: continuity

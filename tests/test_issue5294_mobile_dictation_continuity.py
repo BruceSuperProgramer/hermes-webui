@@ -1,8 +1,10 @@
 """Behavioural regression for #5294 (salvage of the composer-mic dictation fix).
 
 The composer microphone (SpeechRecognition inside `_ensureSpeechRecognition`)
-must keep a MOBILE dictation session alive across a natural pause, while DESKTOP
-dictation stays one-shot (a single utterance that finalizes on the first pause).
+must keep a dictation session alive across a natural pause on EVERY device by
+default (desktop previously finalized after a single utterance, which cut users
+off mid-dictation). An explicit `hermes-mic-continuous='false'` opt-out restores
+the old one-shot behaviour.
 
 Rather than regex the source, this drives the ACTUAL `_ensureSpeechRecognition`
 (and its gate helpers `_micDictationContinuous` / `_micShouldRestartDictation`)
@@ -162,17 +164,25 @@ def _run(driver_path, *, coarse=False, store=None, stop_requested=False, pre_res
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# DESKTOP must stay ONE-SHOT: continuous=false and no auto-restart on a pause.
+# DESKTOP default is now CONTINUOUS (product decision 2026-10-13: one-shot cut
+# users off mid-dictation). An explicit 'false' opt-out restores one-shot.
 # ─────────────────────────────────────────────────────────────────────────────
 class TestDesktopStaysOneShot:
     def test_desktop_recognition_is_not_continuous(self, driver_path):
-        out = _run(driver_path, coarse=False)
+        # One-shot is now opt-in via the explicit flag, not the desktop default.
+        out = _run(driver_path, coarse=False, store={"hermes-mic-continuous": "false"})
         assert out["continuousAfterEnsure"] is False
 
     def test_desktop_does_not_restart_on_natural_pause(self, driver_path):
+        out = _run(driver_path, coarse=False, store={"hermes-mic-continuous": "false"})
+        assert out["restarted"] is False, "one-shot (opt-out) dictation must finalize on the first pause"
+        assert out["micActiveAfterPause"] is False, "one-shot session must end after the pause"
+
+    def test_desktop_default_is_now_continuous(self, driver_path):
         out = _run(driver_path, coarse=False)
-        assert out["restarted"] is False, "desktop dictation must finalize on the first pause"
-        assert out["micActiveAfterPause"] is False, "desktop session must end after the pause"
+        assert out["continuousAfterEnsure"] is True, "desktop default must be continuous dictation"
+        assert out["restarted"] is True, "desktop dictation must survive a natural pause"
+        assert out["micActiveAfterPause"] is True
 
     def test_desktop_optout_flag_forces_one_shot_even_on_coarse_pointer(self, driver_path):
         # An explicit 'false' opt-out must win even on a touch/coarse device.
