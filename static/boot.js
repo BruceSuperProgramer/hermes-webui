@@ -1382,12 +1382,17 @@ function _micToastKeyForRecognitionError(error){
   }
 
   async function _probeServerSttCapability(){
-    if(!_canRecordAudio||_micForceMediaRecorderStored!==null) return;
+    if(!_canRecordAudio) return;
     try{
       const res=await fetch('api/transcribe/capability',{cache:'no-store'});
       const data=await res.json().catch(()=>({}));
       if(res.ok&&data&&data.available){
         _serverSttAvailable=true;
+        // Sticky: persist the flip so a reload starts on the server-STT path
+        // immediately. Browser SpeechRecognition depends on the vendor's cloud
+        // (Google/Apple), which is unreachable in some networks — a reload that
+        // silently falls back to it leaves dictation "recording" with no text.
+        try{localStorage.setItem(_micForceMediaRecorderKey,'1');}catch(_){}
         if(!window._micActive){
           _forceMediaRecorder=true;
           recognition=null;
